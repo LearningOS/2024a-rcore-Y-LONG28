@@ -5,11 +5,14 @@ use crate::{
     timer::get_time_us,
 };
 
-
+/// Represents a time value with seconds and microseconds.
 #[repr(C)]
 #[derive(Debug)]
+/// Represents a time value with seconds and microseconds.
 pub struct TimeVal {
+    /// The number of seconds.
     pub sec: usize,
+    /// The number of microseconds.
     pub usec: usize,
 }
 

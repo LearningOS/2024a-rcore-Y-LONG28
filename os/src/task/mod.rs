@@ -20,6 +20,7 @@ use crate::sync::UPSafeCell;
 use crate::timer::get_time_ms;
 
 
+use crate::config::MAX_SYSCALL_NUM;
 use crate::syscall::TaskInfo;
 
 
@@ -60,7 +61,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
-            syscall_times: [0; MAX_APP_NUM],
+            syscall_times: [0; MAX_SYSCALL_NUM],
             total_run_time: 0,
             first_scheduled_time: 0,
         }; MAX_APP_NUM];
@@ -140,7 +141,7 @@ impl TaskManager {
             inner.current_task = next;
             
 
-            let current_task = &mut inner.tasks[inner.current_task];
+            let current_task = &mut inner.tasks[next];
             if current_task.first_scheduled_time == 0 {
                 current_task.first_scheduled_time = get_time_ms(); // 记录首次调度时间
             }
@@ -192,9 +193,9 @@ pub fn exit_current_and_run_next() {
     run_next_task();
 }
 
-
+/// Acquires task information and stores it in the provided `TaskInfo` structure
 pub fn acuqire_task_info(ti: *mut TaskInfo)->isize{
-    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let  inner = TASK_MANAGER.inner.exclusive_access();
     let current_task_id = inner.current_task;
     let current_task = &inner.tasks[current_task_id];
     // inner.tasks[current].task_status = TaskStatus::Ready;
@@ -210,10 +211,11 @@ pub fn acuqire_task_info(ti: *mut TaskInfo)->isize{
     
 }
 
-pub fn set_syscall_num(){
+/// Sets the syscall number for the current task.
+pub fn set_syscall_num(syscall_id: usize){
     let mut inner = TASK_MANAGER.inner.exclusive_access();
     let current_task_id = inner.current_task;
-    if syscall_id < MAX_SYSCALL_NUM {
-        inner.tasks[current_task_id].syscall_times[0] += 1;
+    if current_task_id < MAX_SYSCALL_NUM {
+        inner.tasks[current_task_id].syscall_times[syscall_id] += 1;
     }
 }
