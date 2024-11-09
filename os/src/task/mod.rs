@@ -17,6 +17,12 @@ mod task;
 use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_ms;
+
+
+use crate::syscall::TaskInfo;
+
+
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
@@ -54,6 +60,9 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            syscall_times: [0; MAX_APP_NUM],
+            total_run_time: 0,
+            first_scheduled_time: 0,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -80,6 +89,12 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
+
+
+        task0.total_run_time = 0;
+        task0.first_scheduled_time = get_time_ms();
+        
+
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -123,6 +138,13 @@ impl TaskManager {
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
+            
+
+            let current_task = &mut inner.tasks[inner.current_task];
+            if current_task.first_scheduled_time == 0 {
+                current_task.first_scheduled_time = get_time_ms(); // 记录首次调度时间
+            }
+
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);
@@ -168,4 +190,30 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+
+pub fn acuqire_task_info(ti: *mut TaskInfo)->isize{
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current_task_id = inner.current_task;
+    let current_task = &inner.tasks[current_task_id];
+    // inner.tasks[current].task_status = TaskStatus::Ready;
+    unsafe {
+        if ti.is_null() { return -1; }
+
+        let task_info = &mut *ti;
+        task_info.status = current_task.task_status;
+        task_info.syscall_times.copy_from_slice(&current_task.syscall_times);
+        task_info.time = get_time_ms() - current_task.first_scheduled_time;
+    }
+    0
+    
+}
+
+pub fn set_syscall_num(){
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current_task_id = inner.current_task;
+    if syscall_id < MAX_SYSCALL_NUM {
+        inner.tasks[current_task_id].syscall_times[0] += 1;
+    }
 }

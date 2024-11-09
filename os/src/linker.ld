@@ -43,6 +43,6 @@ SECTIONS
     ekernel = .;
 
     /DISCARD/ : {
-        *(.eh_frame)
+        *(.eh_frame)  # 存储异常处理和栈展开信息
     }
 }

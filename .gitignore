@@ -18,3 +18,7 @@ pushall.sh
 
 user/
 ci-user/
+
+os/prepocess.py
+
+combined_files.txt
